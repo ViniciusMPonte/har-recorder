@@ -2,13 +2,15 @@
 
 Ferramenta simples para gravar a navegação em um site em um arquivo **HAR**
 (HTTP Archive), incluindo o corpo das respostas (bodies), usando
-[Playwright](https://playwright.dev/python/).
+[Playwright](https://playwright.dev/python/) para dirigir o navegador e
+[mitmproxy](https://mitmproxy.org/) para capturar o tráfego real.
 
-O script abre um navegador Chromium, intercepta as requisições feitas pela
-página, refaz cada requisição via uma sessão HTTP paralela para conseguir
-capturar o corpo completo da resposta e injeta esse corpo no arquivo `.har`
-gerado ao final. Ao terminar, ele audita o HAR gerado e informa se alguma
-resposta com corpo esperado não foi gravada.
+O script sobe um `mitmdump` local e abre um navegador Chromium apontado para
+ele como proxy. Todo o tráfego passa pelo proxy sem ser reescrito ou
+refeito — a resposta gravada é exatamente a que o servidor mandou, com
+headers, cookies (`Set-Cookie` incluso) e corpo completo (mitmproxy já
+descomprime `gzip`/`br` automaticamente). Ao final, o `.har` é escrito e o
+script audita se alguma resposta com corpo esperado não foi gravada.
 
 ## Pré-requisitos
 
@@ -38,11 +40,8 @@ resposta com corpo esperado não foi gravada.
 
 ## Como executar
 
-O script espera que exista um servidor rodando em `http://127.0.0.1:8080/`
-(essa é a URL inicial aberta no navegador — ajuste em `record.py` na função
-`main()` caso precise apontar para outro endereço).
-
-Com o servidor no ar, rode:
+A URL inicial aberta no navegador está configurada em `record.py`, na função
+`main()` — ajuste ali caso precise apontar para outro endereço.
 
 ```bash
 uv run record.py
@@ -56,17 +55,17 @@ uv run record
 
 O que acontece:
 
-1. Um navegador Chromium é aberto (modo visível, não headless) já navegando
-   para a URL configurada.
-2. Navegue normalmente pelo site — todas as requisições feitas durante a
-   navegação são capturadas.
+1. Um `mitmdump` local é iniciado numa porta livre, e um navegador Chromium é
+   aberto (modo visível, não headless) apontado para esse proxy, já
+   navegando para a URL configurada.
+2. Navegue normalmente pelo site — todo o tráfego real passa pelo proxy e é
+   capturado.
 3. Para finalizar a gravação, feche o navegador **ou** pressione `Ctrl+C` no
    terminal.
 4. O script salva o arquivo `.har` na pasta `output/`, com o nome no formato
-   `captura_AAAAMMDD_HHMMSS.har`, e imprime um relatório de auditoria
-   informando quantas entradas tiveram o corpo gravado, quantas foram
-   ignoradas (ex.: streams, requisições condicionais) e se houve alguma perda
-   real de corpo de resposta.
+   `captura_AAAAMMDD_HHMMSS.har`, encerra o `mitmdump`, e imprime um
+   relatório de auditoria informando quantas entradas tiveram o corpo
+   gravado e se houve alguma perda real de corpo de resposta.
 
 ## Saída
 
@@ -83,9 +82,18 @@ DevTools, HAR Viewer, etc.) ou usado como entrada para reprodução de fluxos
 ## Observações
 
 - O parâmetro `--disable-quic` é usado ao abrir o Chromium para evitar que
-  requisições HTTP/3 (QUIC) escapem da interceptação.
-- Requisições do tipo `media`, `websocket` e `eventsource`, assim como
-  requisições condicionais (`If-None-Match` / `If-Modified-Since`), não são
-  interceptadas e seguem seu fluxo normal (não têm o corpo re-capturado).
-- Service workers são bloqueados durante a gravação para garantir que todas
-  as requisições passem pela interceptação.
+  requisições HTTP/3 (QUIC) escapem do proxy.
+- O navegador ignora avisos de certificado TLS (`ignore_https_errors`), já
+  que o `mitmproxy` intercepta HTTPS com um certificado próprio — não é
+  necessário instalar/confiar na CA do `mitmproxy` em lugar nenhum do
+  sistema para gravar.
+- Service workers são bloqueados durante a gravação para garantir que todo
+  o tráfego passe pelo proxy.
+- Diferente de uma versão anterior deste script (que interceptava cada
+  requisição via Playwright e a refazia numa sessão HTTP paralela para
+  capturar o corpo completo): esse mecanismo, embora capturasse o corpo,
+  descartava o header `Set-Cookie` de toda resposta — o navegador nunca
+  recebia esse header de volta ao ter a resposta "preenchida"
+  (`route.fulfill`) manualmente, então nenhum `.har` gerado por ele tinha
+  cookies de sessão gravados. É por isso que a captura passou a usar
+  `mitmproxy` como proxy de rede de verdade, sem jamais recriar a resposta.
