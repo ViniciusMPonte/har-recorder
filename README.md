@@ -40,17 +40,16 @@ script audita se alguma resposta com corpo esperado não foi gravada.
 
 ## Como executar
 
-A URL inicial aberta no navegador está configurada em `record.py`, na função
-`main()` — ajuste ali caso precise apontar para outro endereço.
+A URL inicial aberta no navegador é passada como argumento:
 
 ```bash
-uv run record.py
+uv run record.py https://exemplo.com.br/
 ```
 
 ou, usando o script configurado no `pyproject.toml`:
 
 ```bash
-uv run record
+uv run record https://exemplo.com.br/
 ```
 
 O que acontece:

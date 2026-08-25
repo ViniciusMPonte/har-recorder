@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import socket
@@ -97,8 +98,14 @@ def audit_har(output_path):
     print()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Grava a navegação em um site num arquivo .har.")
+    parser.add_argument("url", help="URL inicial a abrir no navegador")
+    return parser.parse_args()
+
+
 def main():
-    url = "https://autorizador.unimedriopreto.com.br/PlanodeSaude/"
+    url = parse_args().url
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / f"captura_{datetime.now().strftime('%Y%m%d_%H%M%S')}.har"
