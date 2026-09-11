@@ -44,11 +44,12 @@ pontos foi.
 | 13 | Nova arquitetura de pagamentos obrigatória | `oficina-de-fluxos` / `nova-arquitetura-pagamentos.md` | **Autônomo, sempre aplicada** para os tipos valores pagos/analítico — não é escolha, é regra do projeto. |
 | 14 | `bloqueiaExecucoesSimultaneas` vs. `...PorCredencial` | `features-avancadas.md` §4 | **Autônomo** — o workspace só tem uma sessão/credencial gravada; usar a variante por credencial por padrão (critério técnico, não preferência). |
 | 15 | `ignoreSSLIssues()` | `padroes-e-boas-praticas.md` | **Autônomo, só se comprovadamente necessário** — incluir apenas se `run`/`replay` contra o portal real exigiu ignorar erro de certificado; nunca copiar de outro Helper "por garantia". |
-| 16 | Gravar o replay spec do robô contra o portal real (`FixtureMode.RECORD`) | `workspace-para-fluxo-robot` (guardrail próprio) | **Autônomo.** As duas condições do guardrail daquela skill sempre valem nesta pipeline: fluxo é leitura/consulta, e as credenciais são as mesmas usadas na Fase 1 (a própria gravação desta sessão), não credencial externa/antiga. |
+| 16 | Gravar o replay spec do robô contra o portal real (`FixtureMode.RECORD`) | `workspace-para-fluxo-robot` (guardrail próprio) | **Autônomo, mas a credencial em texto puro precisa ter sido pedida explicitamente — a navegação da Fase 1 não entrega isso sozinha.** A primeira condição do guardrail (fluxo é leitura/consulta) sempre vale nesta pipeline. A segunda ("credenciais fornecidas explicitamente pelo usuário para esse fim") **não** se resolve só porque a Fase 3 reusa "a mesma sessão da Fase 1": na gravação ao vivo o usuário digita a senha direto no navegador, e o agente nunca a vê em texto puro — só enxerga o HAR, que pode conter apenas um hash calculado no cliente (ex.: MD5 antes do POST). Por isso a linha 21 abaixo pede usuário/senha em texto puro já na Fase 1, para a Fase 3 não travar no meio perguntando o que já podia ter sido coletado no início. |
 | 17 | Credencial hardcoded de um spec de replay **expirada** (achado ao tentar gravar o cache) | `oficina-de-fluxos` (nota de gravação) | **Hard stop.** Explícito na skill de origem: "não decida sozinho, pergunte ao dev". Nesta pipeline isso normalmente significa: a sessão capturada na Fase 1 expirou antes de a Fase 3 conseguir regravar — parar e reportar; pode exigir gravar um HAR novo. |
 | 18 | LLM fallback do `har-reproducer` (`config.json`) para resolver token | `guardrails.md` §5 | **Nunca habilitar/alterar por conta própria.** Manter a configuração como já está no workspace; um extrator que só resolveria via LLM desligado vira uma lacuna sinalizada no relatório final, não um motivo para ligar o fallback sozinho. |
 | 19 | Push / abrir PR no `http-robot-service` | Regra operacional desta sessão (não da skill) | **Hard stop, sempre.** A entrega para em commit local numa branch `dev-feature-{slug}`; push/PR só acontece se o usuário pedir explicitamente numa mensagem separada, depois de revisar. |
 | 20 | Exibir conteúdo sensível capturado (tokens, cookies, senha) | `guardrails.md` §5 | **Nunca em texto solto.** O relatório final resume o que foi feito, não reproduz o corpo de respostas capturadas. |
+| 21 | Coletar usuário/senha em texto puro para a gravação de cache da Fase 3 (linha 16) | Aprendizado desta própria orquestração (achado em execução real) | **Perguntar já na Fase 1**, como pergunta extra da janela interativa — junto com URL/tipo de fluxo/raiz do workspace do Passo 0 de `gravacao-de-har`, não como pergunta separada depois. Vale para os três tipos de fluxo (login/valores pagos/analítico pressupõem login). Tratar a resposta como dado efêmero desta sessão (mesma disciplina da linha 20: nunca em texto solto no relatório final; só usada dentro do código do spec de teste, que é o padrão hardcoded do próprio `oficina-de-fluxos` para specs de replay). Se o usuário preferir não fornecer agora, seguir sem a credencial e sinalizar no relatório final da Fase 4 que a gravação do cache ficou pendente (mesma saída que `oficina-de-fluxos` já prevê para "credenciais indisponíveis") — não é hard stop, só lacuna documentada. |
 
 ## Processo
 
@@ -60,6 +61,15 @@ interação que esta orquestração preserva — não pular nem pré-responder n
 Os Passos 1–4 dela (gravar, identificar entry inicial/final, reduzir, montar
 workspace) já são não-interativos por design daquela skill — seguir exatamente
 como documentado ali, sem pausar entre eles.
+
+**Além das perguntas de `gravacao-de-har`, pedir também usuário/senha em texto
+puro do login usado nesta captura** (linha 21 do contrato) — a navegação ao vivo
+não entrega isso ao agente (o usuário digita direto no navegador), e a Fase 3
+precisa da credencial real para gravar o cache do replay spec (linha 16). Pedir
+isso já aqui evita descobrir a falta dela só no meio da Fase 3, quando o
+workspace já está pronto e tudo mais já rodou sem pausar. Se o usuário preferir
+não fornecer agora, seguir sem — vira lacuna sinalizada no relatório da Fase 4,
+não um bloqueio da Fase 1/2.
 
 Ignorar o "Checkpoint — aprendizado generalizável" do fim de `gravacao-de-har`
 (é uma pergunta sobre atualizar a skill em si, não faz parte da entrega) — se
@@ -139,11 +149,31 @@ origem específicos listados no fim de `workspace-para-fluxo-robot/references/pr
 
 ### Fase 4 — entrega e relatório final
 
-- Criar branch `dev-feature-{slug}` (convenção do repositório) a partir da
-  branch principal atualizada — `{slug}` derivado de convênio + tipo de fluxo
-  (ex.: `dev-feature-hapvida-valores-pagos`), já que não existe ticket Jira
-  nesta pipeline autônoma (desvio documentado da convenção `dev-feature-{TICKET}`
-  observada em `oficina-de-fluxos`).
+- **Branch: a decisão depende de existir ticket ou não.**
+  - **Existe ticket** (o usuário mencionou um `ZG-XXXX` nesta sessão, ou o
+    repositório já está numa branch `dev-{hotfix|feature}-ZG-\d+`): usar
+    exatamente essa branch, sem exceção. A orquestração **nunca** cria,
+    procura ou troca de branch por conta própria nesse caso — não é decisão
+    dela, é decisão de ticket/processo normal de `oficina-de-fluxos`. Os
+    commits deste fluxo entram ali, junto com o resto do trabalho do ticket.
+  - **Não existe ticket** (caminho autônomo padrão desta pipeline, sem Jira):
+    aplicar "uma branch por convênio, não por fluxo" — mas só reaproveitando
+    uma branch que **já siga o padrão sem-ticket desta própria pipeline**
+    (`dev-feature-{convênio}`, sem token `ZG-\d+` no nome). Nunca reaproveitar
+    uma branch qualquer só porque ela toca o mesmo convênio — pode ser
+    trabalho de outra pessoa, de outro ticket, sem relação com esta pipeline.
+    - **Se existir** uma branch `dev-feature-{convênio}*` local, sem ticket
+      no nome, ainda não mergeada: `git checkout` nela e commitar o fluxo
+      novo ali (mais um commit, mesma branch) — nunca criar uma branch nova,
+      nem irmã, nem a partir dela, só porque o tipo de fluxo mudou.
+    - **Se não existir**: criar `dev-feature-{slug}` a partir da branch
+      principal atualizada, com `{slug}` sendo só o **convênio**
+      (ex.: `dev-feature-hapvida`, não `dev-feature-hapvida-valores-pagos`)
+      — o tipo de fluxo fica na mensagem de commit, não no nome da branch,
+      já que a branch pode acumular vários tipos de fluxo do mesmo convênio
+      antes de mergear. Ausência de ticket Jira nesta pipeline autônoma
+      continua sendo o motivo do desvio da convenção `dev-feature-{TICKET}`
+      observada em `oficina-de-fluxos`.
 - Commitar seguindo o padrão observado (`tipo: descrição em português`). **Não**
   gerar o commit de confirmação de breaking change/indisponibilidade — ele só é
   exigido antes de ir para a branch principal, e esta entrega para antes disso;
@@ -163,7 +193,8 @@ origem específicos listados no fim de `workspace-para-fluxo-robot/references/pr
   5. Fluxo Groovy: arquivo(s), Helper, categoria (`LOGIN`/`PAGAMENTOS`), site(s)
      em `Sites.json`.
   6. Testes rodados e resultado, com o comando exato usado.
-  7. Branch e commit criados (hash, mensagem) — sem push.
+  7. Branch usada (de ticket reaproveitada, de convênio nova, ou de convênio
+     reaproveitada) e commit(s) criados (hash, mensagem) — sem push.
   8. Próximo passo sugerido ao usuário (revisar diff, decidir push/PR).
   9. Se algum hard stop interrompeu a execução antes do fim: reportar até onde
      chegou, marcado claramente como incompleto — nunca apresentar como

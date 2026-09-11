@@ -12,7 +12,7 @@ gravacao-de-har (esta skill)  →  reproducao-de-har (repo har-reproducer)  → 
       grava + reduz HAR              minimiza passos + extratores               gera o fluxo Groovy
 ```
 
-O critério de pronto desta skill é objetivo: existe `<raiz>/<domínio>__<AAAAMMDD>/<arquivo>.har`
+O critério de pronto desta skill é objetivo: existe `<raiz>/<domínio>__<AAAAMMDD>_<HHMM>_<tipo>/<arquivo>.har`
 (o `.har` já reduzido) na convenção que
 `{har-reproducer}/.claude/skills/reproducao-de-har/references/workspace-setup.md`
 descreve, pronto para uma sessão de `reproducao-de-har` começar direto no Passo 1
@@ -97,9 +97,13 @@ implicar uma delas.
 
 ## Passo 4 — montar o workspace pronto para o `reproducao-de-har`
 
-- Extrair `AAAAMMDD` do nome do arquivo de captura (`captura_AAAAMMDD_HHMMSS.har`)
-  — é a data da **captura**, não a de hoje.
-- Criar `<raiz>/<domínio>__<AAAAMMDD>/`.
+- Extrair `AAAAMMDD` e `HHMM` do nome do arquivo de captura
+  (`captura_AAAAMMDD_HHMMSS.har`) — data e hora da **captura**, não de hoje.
+- Criar `<raiz>/<domínio>__<AAAAMMDD>_<HHMM>_<tipo>/`, onde `<tipo>` é o tipo
+  de fluxo definido no Passo 0 (`login`/`valores_pagos`/`analitico`). O
+  horário garante que duas capturas do mesmo domínio no mesmo dia nunca
+  colidam — mesmo duas do mesmo tipo — sem precisar de sufixo improvisado
+  na hora.
 - Copiar (não mover) o `.har` reduzido para dentro dessa pasta — mantém o `.har`
   bruto em `output/` deste repo como histórico, intacto.
 - **Não criar `output/` nem `git init` aqui** — isso é o Passo 0 de
@@ -114,7 +118,7 @@ implicar uma delas.
 - [ ] HAR gravado, auditoria de completude sem pendência não explicada
 - [ ] entry inicial e final identificadas e justificadas ao usuário
 - [ ] `.har` reduzido conferido (última entry bate com o índice esperado)
-- [ ] pasta de workspace criada na convenção `<raiz>/<domínio>__<AAAAMMDD>/`
+- [ ] pasta de workspace criada na convenção `<raiz>/<domínio>__<AAAAMMDD>_<HHMM>_<tipo>/`
 - [ ] usuário sabe que o próximo passo é `reproducao-de-har` (Passo 1) sobre essa
       pasta
 
