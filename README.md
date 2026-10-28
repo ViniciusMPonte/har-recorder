@@ -96,3 +96,34 @@ DevTools, HAR Viewer, etc.) ou usado como entrada para reprodução de fluxos
   (`route.fulfill`) manualmente, então nenhum `.har` gerado por ele tinha
   cookies de sessão gravados. É por isso que a captura passou a usar
   `mitmproxy` como proxy de rede de verdade, sem jamais recriar a resposta.
+
+## Extensão do Chrome (alternativa sem proxy)
+
+`extensao-chrome/` grava o mesmo `.har` (mesmo formato do `har_addon.py`)
+direto no seu Chrome, sem mitmproxy nem Playwright. Usa o `chrome.debugger`
+(DevTools Protocol) e segura cada resposta até ler o corpo, como o proxy faz.
+Não sofre do problema de HTTP/2 que pede `--sem-http2`.
+
+Instalar (uma vez): `chrome://extensions` → ative **Modo do desenvolvedor** →
+**Carregar sem compactação** → escolha a pasta `extensao-chrome/`.
+
+Gravar:
+
+1. Abra uma aba (de preferência numa janela anônima ou num perfil limpo —
+   a extensão usa os cookies que o navegador já tem; para isso, permita a
+   extensão no modo anônimo em "Detalhes").
+2. Clique no ícone da extensão: aparece `REC` e a barra amarela
+   "HAR Recorder começou a depurar este navegador".
+3. Navegue até a URL inicial e faça o fluxo. Popups e iframes de outra
+   origem abertos pela aba também são gravados.
+4. Clique no ícone de novo (ou feche a aba, ou "Cancelar" na barra amarela).
+   O arquivo vai para `Downloads/har-recorder/captura_AAAAMMDD_HHMMSS.har`.
+   A auditoria de corpo aparece no tooltip do ícone (`!` = tem resposta sem
+   corpo; a lista sai no console do service worker).
+
+Diferenças para o `record.py`: cache e service worker ficam desligados como
+no contexto do Playwright, mas os cookies e o perfil são os do navegador;
+corpo de redirect (3xx) não é gravado; a primeira resposta de um popup pode
+vir sem corpo se carregar antes do attach.
+
+Teste: `uv run python extensao-chrome/teste_extensao.py`.

@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "HAR Recorder",
+  "version": "0.1.0",
+  "description": "Grava a navegação da aba num .har com o corpo das respostas (mesmo formato do har-recorder).",
+  "permissions": ["debugger", "downloads"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "HAR Recorder: clique para gravar esta aba" }
+}
